@@ -4,6 +4,64 @@ Escriba el codigo que ejecute la accion solicitada.
 
 # pylint: disable=import-outside-toplevel
 
+import pandas as pd
+import zipfile
+from pathlib import Path
+import os
+import glob
+
+
+def load_input(input):
+
+    datos = []
+
+    carpeta_entrada = Path(input)
+
+    for archivo in carpeta_entrada.iterdir():
+
+        with zipfile.ZipFile(archivo) as zip_file:
+                for csv_file in zip_file.namelist():
+                    with zip_file.open(csv_file) as file:
+                        df = pd.read_csv(file)
+                        datos.append(df)
+    
+    dataframe = pd.concat(datos, ignore_index=True)
+
+    return dataframe
+
+
+
+def save_output(dato1, dato2, dato3, directorio_salida, nombre_salida1, nombre_salida2, nombre_salida3):
+    """Save output to a file."""
+
+    if os.path.exists(directorio_salida):
+        files = glob.glob(f"{directorio_salida}/*")
+        for file in files:
+            os.remove(file)
+        os.rmdir(directorio_salida)
+
+    os.makedirs(directorio_salida)
+
+    dato1.to_csv(
+        f"{directorio_salida}/{nombre_salida1}",
+        sep=",",
+        index=False,
+        header=True,
+    )
+    dato2.to_csv(
+        f"{directorio_salida}/{nombre_salida2}",
+        sep=",",
+        index=False,
+        header=True,
+    )
+
+    dato3.to_csv(
+        f"{directorio_salida}/{nombre_salida3}",
+        sep=",",
+        index=False,
+        header=True,
+    )
+
 
 def clean_campaign_data():
     """
@@ -49,8 +107,57 @@ def clean_campaign_data():
 
 
     """
+    df = load_input('files/input')
+    #cleaning data from df
 
-    return
+    #cambios en la columna 'job'
+    df['job'] = df['job'].str.replace('.','', regex=False).str.replace('-','_', regex=False)
+
+    #cambios en la columna education
+    df['education'] = df['education'].str.replace('.','_', regex=False)
+    df['education'] = df['education'].replace('unknown',pd.NA)
+
+    #cambios en la columna credit_default
+    df['credit_default'] = df['credit_default'].replace('yes',1, regex=False)
+    df.loc[df['credit_default'] != 1, 'credit_default'] = 0
+
+    #cambios en la columna mortgage
+    df['mortgage'] = df['mortgage'].replace('yes',1, regex=False)
+    df.loc[df['mortgage'] != 1, 'mortgage'] = 0
+
+    #cambios en previous_outcome
+    df['previous_outcome'] = df['previous_outcome'].replace('success',1)
+    df.loc[df['previous_outcome'] != 1, 'previous_outcome'] = 0
+
+    #cambios en campaign_outcome
+    df['campaign_outcome'] = df['campaign_outcome'].replace('yes',1)
+    df.loc[df['campaign_outcome'] != 1, 'campaign_outcome'] = 0
+
+    #creacion de last_contact_day
+    meses_a_numeros = {
+    'mar': '03',
+    'apr': '04',
+    'may': '05',
+    'jun': '06',
+    'jul': '07',
+    'aug': '08',
+    'sep': '09',
+    'oct': '10',
+    'nov': '11',
+    'dec': '12'
+    }
+
+    df['month'] = df['month'].map(meses_a_numeros)
+    df['last_contact_date'] = '2022' + '-' + df['month'] + '-' + df['day'].astype(str)
+
+    #crear los 3 archivos
+    client_df = df.iloc[:, 1:8 ]
+
+    campaign_df = df.iloc[:, [1,10,11,12,13,16,17]]
+
+    economics_df = df.iloc[:, [1,14,15]]
+
+    save_output(client_df, campaign_df, economics_df, 'files/output', 'client.csv', 'campaign.csv', 'economics.csv')
 
 
 if __name__ == "__main__":
